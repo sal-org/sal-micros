@@ -6,13 +6,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
 
 	"github.com/aws/aws-lambda-go/lambda"
 )
 
 // send notification to devices through onesignal
-
-var onesignalAppID string
 
 type NotificationData struct {
 	AppID            string            `json:"app_id"`
@@ -28,7 +27,7 @@ func main() {
 
 // Handler is started by lambda
 func Handler(data NotificationData) {
-	data.AppID = onesignalAppID
+	data.AppID = os.Getenv("app_id")
 	sendNotification(data)
 }
 
