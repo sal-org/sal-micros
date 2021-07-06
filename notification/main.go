@@ -6,7 +6,7 @@ import (
 	DB "notification/database"
 )
 
-// send notification to devices through onesignal
+// send notifications to devices through onesignal
 
 func main() {
 	CONFIG.LoadConfig()
