@@ -3,6 +3,7 @@ package cron
 import (
 	"fmt"
 	"io/ioutil"
+	CONFIG "message/config"
 	CONSTANT "message/constant"
 	DB "message/database"
 	UTIL "message/util"
@@ -72,7 +73,7 @@ func buildMessageURL(text, route, phone string) string {
 
 	v := url.Values{}
 	v.Add("text", text)
-	v.Add("key", CONSTANT.CorefactorsAPIKey)
+	v.Add("key", CONFIG.CorefactorsAPIKey)
 	v.Add("to", phone)
 	v.Add("route", route)
 	v.Add("from", CONSTANT.TextMessageFrom)

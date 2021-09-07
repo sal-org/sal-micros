@@ -17,4 +17,6 @@ func LoadConfig() {
 	}
 
 	DBConfig = os.Getenv("DB_CONFIG")
+	SESAccessKey = os.Getenv("SES_ACCESS_KEY")
+	SESSecretKey = os.Getenv("SES_SECRET_KEY")
 }

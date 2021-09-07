@@ -17,4 +17,5 @@ func LoadConfig() {
 	}
 
 	DBConfig = os.Getenv("DB_CONFIG")
+	CorefactorsAPIKey = os.Getenv("CORE_FACTORS_API_KEY")
 }

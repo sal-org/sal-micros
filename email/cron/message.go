@@ -1,6 +1,7 @@
 package cron
 
 import (
+	CONFIG "email/config"
 	CONSTANT "email/constant"
 	DB "email/database"
 	UTIL "email/util"
@@ -66,7 +67,7 @@ func sendSESMail(title, body, email, emailType string) {
 
 	// start a new ses session
 	svc := ses.New(sess, &aws.Config{
-		Credentials: credentials.NewStaticCredentials(CONSTANT.S3AccessKey, CONSTANT.S3SecretKey, ""),
+		Credentials: credentials.NewStaticCredentials(CONFIG.SESAccessKey, CONFIG.SESSecretKey, ""),
 		Region:      aws.String("ap-south-1"),
 	})
 
