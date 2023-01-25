@@ -17,7 +17,4 @@ func LoadConfig() {
 	}
 
 	DBConfig = os.Getenv("DB_CONFIG")
-	OneSignalAppIDForClient = os.Getenv("ONESIGNAL_APP_ID_FOR_CLIENT")
-	OneSignalAppIDForTherapist = os.Getenv("ONESIGNAL_APP_ID_FOR_THERAPIST")
-
 }

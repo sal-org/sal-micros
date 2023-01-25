@@ -1,3 +1,5 @@
 package config
 
-var OneSignalAppID string // used to send notifications through onesignal API
+var OneSignalAppIDForClient string // used to send notification for therpist through onesignal API
+
+var OneSignalAppIDForTherapist string // used to send notification for client through onesignal API

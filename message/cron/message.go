@@ -17,17 +17,17 @@ import (
 var wg sync.WaitGroup
 
 func sendMessages() {
-	if !strings.EqualFold(DB.QueryRowSQL("select message_cron_status from "+CONSTANT.CronStatusTable+" limit 1"), "0") { // run only if no other message cron is active
-		return
-	}
-	defer DB.ExecuteSQL("update " + CONSTANT.CronStatusTable + " set message_cron_status = 0")
+	// if !strings.EqualFold(DB.QueryRowSQL("select message_cron_status from "+CONSTANT.CronStatusTable+" limit 1"), "0") { // run only if no other message cron is active
+	// 	return
+	// }
+	// defer DB.ExecuteSQL("update " + CONSTANT.CronStatusTable + " set message_cron_status = 0")
 
-	DB.ExecuteSQL("update " + CONSTANT.CronStatusTable + " set message_cron_status = 1")
+	// DB.ExecuteSQL("update " + CONSTANT.CronStatusTable + " set message_cron_status = 1")
 	startTime := time.Now()
 	for {
 		if time.Now().Sub(startTime).Minutes() < 10 { // run cron only for 10 min
 			// get all messages which are not sent
-			messages, ok := DB.SelectProcess("select * from " + CONSTANT.MessagesTable + " where status = " + CONSTANT.MessageInProgress + " limit 100")
+			messages, ok := DB.SelectProcess("select * from " + CONSTANT.MessagesTable + " where send_at <= now()+interval 330 minute and status = " + CONSTANT.MessageInProgress + " and  message_status = " + CONSTANT.MessageInProgress + " limit 100")
 			if !ok || len(messages) == 0 { // stop if no messages found
 				break
 			}
@@ -41,7 +41,7 @@ func sendMessages() {
 			messageIDs := UTIL.ExtractValuesFromArrayMap(messages, "message_id")
 
 			// update messages to sent status
-			DB.ExecuteSQL("update " + CONSTANT.MessagesTable + " set status = " + CONSTANT.MessageSent + " where message_id in ('" + strings.Join(messageIDs, "','") + "')")
+			DB.ExecuteSQL("update " + CONSTANT.MessagesTable + " set status = " + CONSTANT.MessageSent + ", message_status = " + CONSTANT.MessageSent + " where message_id in ('" + strings.Join(messageIDs, "','") + "')")
 
 			wg.Wait()
 		} else {

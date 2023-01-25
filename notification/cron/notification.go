@@ -19,17 +19,17 @@ import (
 var wg sync.WaitGroup
 
 func sendNotifications() {
-	if !strings.EqualFold(DB.QueryRowSQL("select notification_cron_status from "+CONSTANT.CronStatusTable+" limit 1"), "0") { // run only if no other notification cron is active
-		return
-	}
-	defer DB.ExecuteSQL("update " + CONSTANT.CronStatusTable + " set notification_cron_status = 0")
+	// if !strings.EqualFold(DB.QueryRowSQL("select notification_cron_status from "+CONSTANT.CronStatusTable+" limit 1"), "0") { // run only if no other notification cron is active
+	// 	return
+	// }
+	// defer DB.ExecuteSQL("update " + CONSTANT.CronStatusTable + " set notification_cron_status = 0")
 
-	DB.ExecuteSQL("update " + CONSTANT.CronStatusTable + " set notification_cron_status = 1")
+	// DB.ExecuteSQL("update " + CONSTANT.CronStatusTable + " set notification_cron_status = 1")
 	startTime := time.Now()
 	for {
 		if time.Now().Sub(startTime).Minutes() < 10 { // run cron only for 10 min
 			// get all notifications which are not sent
-			notifications, ok := DB.SelectProcess("select * from " + CONSTANT.NotificationsTable + " where notification_status = " + CONSTANT.NotificationInProgress + " and onesignal_id != '' limit 100")
+			notifications, ok := DB.SelectProcess("select * from " + CONSTANT.NotificationsTable + " where send_at <= now()+interval 330 minute and notification_status = " + CONSTANT.NotificationInProgress + " and onesignal_id != '' limit 100")
 			if !ok || len(notifications) == 0 { // stop if no notifications found
 				break
 			}
@@ -37,7 +37,7 @@ func sendNotifications() {
 			// send notifications
 			for _, notification := range notifications {
 				wg.Add(1)
-				go sendNotification(notification["title"], notification["body"], notification["onesignal_id"])
+				go sendNotification(notification["title"], notification["body"], notification["onesignal_id"], notification["type"])
 			}
 
 			notificationIDs := UTIL.ExtractValuesFromArrayMap(notifications, "notification_id")
@@ -52,11 +52,19 @@ func sendNotifications() {
 	}
 }
 
-func sendNotification(heading, content, notificationID string) {
+func sendNotification(heading, content, notificationID, personType string) {
 	defer wg.Done()
+
+	var app_id string
+
+	if personType == "3" {
+		app_id = CONFIG.OneSignalAppIDForClient
+	} else {
+		app_id = CONFIG.OneSignalAppIDForTherapist
+	}
 	// sent to onesignal
 	data := MODEL.OneSignalNotificationData{
-		AppID:            CONFIG.OneSignalAppID,
+		AppID:            app_id,
 		Headings:         map[string]string{"en": heading},
 		Contents:         map[string]string{"en": content},
 		IncludePlayerIDs: []string{notificationID},
