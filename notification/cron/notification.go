@@ -37,7 +37,12 @@ func sendNotifications() {
 			// send notifications
 			for _, notification := range notifications {
 				wg.Add(1)
-				go sendNotification(notification["title"], notification["body"], notification["onesignal_id"], notification["type"])
+				if notification["onesignal_id"] == "Subscribed Users" {
+					go sendNotificationForBulk(notification["title"], notification["body"], notification["onesignal_id"], notification["type"], notification["tag_id"])
+				} else {
+					go sendNotification(notification["title"], notification["body"], notification["onesignal_id"], notification["type"])
+				}
+
 			}
 
 			notificationIDs := UTIL.ExtractValuesFromArrayMap(notifications, "notification_id")
@@ -62,6 +67,7 @@ func sendNotification(heading, content, notificationID, personType string) {
 	} else {
 		app_id = CONFIG.OneSignalAppIDForTherapist
 	}
+
 	// sent to onesignal
 	data := MODEL.OneSignalNotificationData{
 		AppID:            app_id,
@@ -85,4 +91,38 @@ func sendNotification(heading, content, notificationID, personType string) {
 	}
 
 	fmt.Println(data, string(body))
+}
+
+func sendNotificationForBulk(heading, content, notificationID, personType, tagID string) {
+	defer wg.Done()
+	var imageURl string
+	if tagID == "allclient" {
+		imageURl = ""
+	} else {
+		imageURl = tagID
+	}
+	// sent to onesignal
+	data := MODEL.OneSignalNotificationBulkData{
+		AppID:            CONFIG.OneSignalAppIDForClient,
+		Headings:         map[string]string{"en": heading},
+		Contents:         map[string]string{"en": content},
+		IncludedSegments: []string{"Active Users", "Inactive Users"},
+		Data:             map[string]string{},
+		BigPicture:       imageURl,
+		IosAttachments:   MODEL.IosAttachmentsModel{ID1: imageURl},
+	}
+	byteData, _ := json.Marshal(data)
+	req, _ := http.NewRequest("POST", "https://onesignal.com/api/v1/notifications", bytes.NewBuffer(byteData))
+	req.Header.Add("Authorization", "Basic ZDMxNGU3NTYtM2RkNS00NmMzLWJhMjMtYWUwYTAzYzg3Nzdk")
+	req.Header.Add("Content-Type", "application/json")
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		fmt.Println("error", err)
+	}
+
+	defer res.Body.Close()
+	body, _ := ioutil.ReadAll(res.Body)
+
+	fmt.Println(string(body))
 }
