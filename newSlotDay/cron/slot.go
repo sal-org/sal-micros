@@ -15,6 +15,11 @@ func addSlots() {
 		return
 	}
 
+	counsellorIDs, ok := DB.SelectProcess("(select counsellor_id as id from " + CONSTANT.CounsellorsTable + ") union (select listener_id as id from " + CONSTANT.ListenersTable + ") union (select therapist_id as id from " + CONSTANT.TherapistsTable + ")")
+	if !ok {
+		return
+	}
+
 	for _, schedule := range schedules {
 		for key, value := range schedule {
 			slot, err := strconv.Atoi(value)
@@ -28,10 +33,7 @@ func addSlots() {
 	}
 
 	// insert a day for whom there is no schedule
-	counsellorIDs, ok := DB.SelectProcess("(select counsellor_id as id from " + CONSTANT.CounsellorsTable + ") union (select listener_id as id from " + CONSTANT.ListenersTable + ") union (select therapist_id as id from " + CONSTANT.TherapistsTable + ")")
-	if !ok {
-		return
-	}
+	
 	for _, counsellorID := range counsellorIDs {
 		DB.InsertSQL(CONSTANT.SlotsTable, map[string]string{"counsellor_id": counsellorID["id"], "date": slotDate.Format("2006-01-02")})
 	}

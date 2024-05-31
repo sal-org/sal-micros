@@ -38,7 +38,7 @@ func sendNotifications() {
 			for _, notification := range notifications {
 				wg.Add(1)
 				if notification["onesignal_id"] == "Subscribed Users" {
-					go sendNotificationForBulk(notification["title"], notification["body"], notification["onesignal_id"], notification["type"], notification["tag_id"])
+					go sendNotificationForBulk(notification["title"], notification["body"], notification["onesignal_id"], notification["type"], notification["image"])
 				} else {
 					go sendNotification(notification["title"], notification["body"], notification["onesignal_id"], notification["type"])
 				}
@@ -60,27 +60,62 @@ func sendNotifications() {
 func sendNotification(heading, content, notificationID, personType string) {
 	defer wg.Done()
 
-	var app_id string
+	var app_id, apiKey string
+	var byteData []byte
 
 	if personType == "3" {
 		app_id = CONFIG.OneSignalAppIDForClient
+		apiKey = CONFIG.OneSignalApiKeyForClient
+
+		// data := MODEL.OneSignalNotificationData{
+		// 	AppID:            app_id,
+		// 	Headings:         map[string]string{"en": heading},
+		// 	Contents:         map[string]string{"en": content},
+		// 	IncludePlayerIDs: []string{notificationID},
+		// 	Data:             map[string]string{},
+		// }
+		// byteData, _ = json.Marshal(data)
 	} else {
 		app_id = CONFIG.OneSignalAppIDForTherapist
+		apiKey = CONFIG.OneSignalApiKeyForTherapist
+
 	}
 
-	// sent to onesignal
-	data := MODEL.OneSignalNotificationData{
-		AppID:            app_id,
-		Headings:         map[string]string{"en": heading},
-		Contents:         map[string]string{"en": content},
-		IncludePlayerIDs: []string{notificationID},
-		Data:             map[string]string{},
+	if strings.Contains(notificationID, "-") {
+
+		data := MODEL.OneSignalNotificationData{
+			AppID:            app_id,
+			Headings:         map[string]string{"en": heading},
+			Contents:         map[string]string{"en": content},
+			IncludePlayerIDs: []string{notificationID},
+			Data:             map[string]string{},
+		}
+		byteData, _ = json.Marshal(data)
+
+	} else {
+		data := MODEL.OneSignalNotificatnData{
+			AppID:          app_id,
+			Headings:       map[string]string{"en": heading},
+			Contents:       map[string]string{"en": content},
+			IncludeAliases: MODEL.IncludeAliase{ExternalID: []string{notificationID}},
+			Channels:       []string{"push"},
+			Data:           map[string]string{},
+		}
+		byteData, _ = json.Marshal(data)
 	}
-	byteData, _ := json.Marshal(data)
-	resp, err := http.Post("https://onesignal.com/api/v1/notifications", "application/json", bytes.NewBuffer(byteData))
+
+	// resp, err := http.Post("https://onesignal.com/api/v1/notifications", "application/json", bytes.NewBuffer(byteData))
+	// if err != nil {
+	// 	fmt.Println("sendNotification", err)
+	// 	return
+	// }
+	req, _ := http.NewRequest("POST", "https://onesignal.com/api/v1/notifications", bytes.NewBuffer(byteData))
+	req.Header.Add("Authorization", "Basic "+apiKey)
+	req.Header.Add("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		fmt.Println("sendNotification", err)
-		return
+		fmt.Println("error", err)
 	}
 
 	defer resp.Body.Close()
@@ -90,16 +125,16 @@ func sendNotification(heading, content, notificationID, personType string) {
 		return
 	}
 
-	fmt.Println(data, string(body))
+	fmt.Println(string(body))
 }
 
-func sendNotificationForBulk(heading, content, notificationID, personType, tagID string) {
+func sendNotificationForBulk(heading, content, notificationID, personType, image string) {
 	defer wg.Done()
 	var imageURl string
-	if tagID == "allclient" {
+	if image == "" {
 		imageURl = ""
 	} else {
-		imageURl = tagID
+		imageURl = image
 	}
 	// sent to onesignal
 	data := MODEL.OneSignalNotificationBulkData{
