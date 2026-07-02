@@ -19,17 +19,17 @@ import (
 var wg sync.WaitGroup
 
 func sendNotifications() {
-	if !strings.EqualFold(DB.QueryRowSQL("select notification_cron_status from "+CONSTANT.CronStatusTable+" limit 1"), "0") { // run only if no other notification cron is active
-		return
-	}
-	defer DB.ExecuteSQL("update " + CONSTANT.CronStatusTable + " set notification_cron_status = 0")
+	// if !strings.EqualFold(DB.QueryRowSQL("select notification_cron_status from "+CONSTANT.CronStatusTable+" limit 1"), "0") { // run only if no other notification cron is active
+	// 	return
+	// }
+	// defer DB.ExecuteSQL("update " + CONSTANT.CronStatusTable + " set notification_cron_status = 0")
 
-	DB.ExecuteSQL("update " + CONSTANT.CronStatusTable + " set notification_cron_status = 1")
+	// DB.ExecuteSQL("update " + CONSTANT.CronStatusTable + " set notification_cron_status = 1")
 	startTime := time.Now()
 	for {
 		if time.Now().Sub(startTime).Minutes() < 10 { // run cron only for 10 min
 			// get all notifications which are not sent
-			notifications, ok := DB.SelectProcess("select * from " + CONSTANT.NotificationsTable + " where notification_status = " + CONSTANT.NotificationInProgress + " and onesignal_id != '' limit 100")
+			notifications, ok := DB.SelectProcess("select * from " + CONSTANT.NotificationsTable + " where send_at <= now()+interval 330 minute and notification_status = " + CONSTANT.NotificationInProgress + " and onesignal_id != '' limit 100")
 			if !ok || len(notifications) == 0 { // stop if no notifications found
 				break
 			}
@@ -37,7 +37,12 @@ func sendNotifications() {
 			// send notifications
 			for _, notification := range notifications {
 				wg.Add(1)
-				go sendNotification(notification["title"], notification["body"], notification["onesignal_id"])
+				if notification["onesignal_id"] == "Subscribed Users" {
+					go sendNotificationForBulk(notification["title"], notification["body"], notification["onesignal_id"], notification["type"], notification["image"])
+				} else {
+					go sendNotification(notification["title"], notification["body"], notification["image"], notification["onesignal_id"], notification["type"])
+				}
+
 			}
 
 			notificationIDs := UTIL.ExtractValuesFromArrayMap(notifications, "notification_id")
@@ -52,21 +57,71 @@ func sendNotifications() {
 	}
 }
 
-func sendNotification(heading, content, notificationID string) {
+func sendNotification(heading, content, image, notificationID, personType string) {
 	defer wg.Done()
-	// sent to onesignal
-	data := MODEL.OneSignalNotificationData{
-		AppID:            CONFIG.OneSignalAppID,
-		Headings:         map[string]string{"en": heading},
-		Contents:         map[string]string{"en": content},
-		IncludePlayerIDs: []string{notificationID},
-		Data:             map[string]string{},
+
+	var app_id, apiKey string
+	var byteData []byte
+
+	if personType == "3" {
+		app_id = CONFIG.OneSignalAppIDForClient
+		apiKey = CONFIG.OneSignalApiKeyForClient
+
+		// data := MODEL.OneSignalNotificationData{
+		// 	AppID:            app_id,
+		// 	Headings:         map[string]string{"en": heading},
+		// 	Contents:         map[string]string{"en": content},
+		// 	IncludePlayerIDs: []string{notificationID},
+		// 	Data:             map[string]string{},
+		// }
+		// byteData, _ = json.Marshal(data)
+	} else {
+		app_id = CONFIG.OneSignalAppIDForTherapist
+		apiKey = CONFIG.OneSignalApiKeyForTherapist
+
 	}
-	byteData, _ := json.Marshal(data)
-	resp, err := http.Post("https://onesignal.com/api/v1/notifications", "application/json", bytes.NewBuffer(byteData))
+
+	if image == "" || len(image) == 0 {
+		data := MODEL.OneSignalNotificatnData{
+			AppID:          app_id,
+			Headings:       map[string]string{"en": heading},
+			Contents:       map[string]string{"en": content},
+			IncludeAliases: MODEL.IncludeAliase{ExternalID: []string{notificationID}},
+			Channels:       []string{"push"},
+			Data:           map[string]string{},
+		}
+		byteData, _ = json.Marshal(data)
+	} else {
+		// if image is provided, then send notification with image
+		image = CONFIG.MediaURL + image // prepend media url to image path
+
+		data := MODEL.OneSignalNotificationWithImage{
+			AppID:          app_id,
+			Headings:       map[string]string{"en": heading},
+			Contents:       map[string]string{"en": content},
+			IncludeAliases: MODEL.IncludeAliase{ExternalID: []string{notificationID}},
+			Channels:       []string{"push"},
+			Data:           map[string]string{},
+			BigPicture:     image,
+			IosAttachments: MODEL.IosAttachmentsModel{
+				ID1: image,
+			},	
+		}
+		byteData, _ = json.Marshal(data)
+	}
+
+	// resp, err := http.Post("https://onesignal.com/api/v1/notifications", "application/json", bytes.NewBuffer(byteData))
+	// if err != nil {
+	// 	fmt.Println("sendNotification", err)
+	// 	return
+	// }
+	req, _ := http.NewRequest("POST", "https://onesignal.com/api/v1/notifications", bytes.NewBuffer(byteData))
+	req.Header.Add("Authorization", "Basic "+apiKey)
+	req.Header.Add("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		fmt.Println("sendNotification", err)
-		return
+		fmt.Println("error", err)
 	}
 
 	defer resp.Body.Close()
@@ -76,5 +131,39 @@ func sendNotification(heading, content, notificationID string) {
 		return
 	}
 
-	fmt.Println(data, string(body))
+	fmt.Println(string(body))
+}
+
+func sendNotificationForBulk(heading, content, notificationID, personType, image string) {
+	defer wg.Done()
+	var imageURl string
+	if image == "" {
+		imageURl = ""
+	} else {
+		imageURl = image
+	}
+	// sent to onesignal
+	data := MODEL.OneSignalNotificationBulkData{
+		AppID:            CONFIG.OneSignalAppIDForClient,
+		Headings:         map[string]string{"en": heading},
+		Contents:         map[string]string{"en": content},
+		IncludedSegments: []string{"Active Users", "Inactive Users"},
+		Data:             map[string]string{},
+		BigPicture:       imageURl,
+		IosAttachments:   MODEL.IosAttachmentsModel{ID1: imageURl},
+	}
+	byteData, _ := json.Marshal(data)
+	req, _ := http.NewRequest("POST", "https://onesignal.com/api/v1/notifications", bytes.NewBuffer(byteData))
+	req.Header.Add("Authorization", "Basic ZDMxNGU3NTYtM2RkNS00NmMzLWJhMjMtYWUwYTAzYzg3Nzdk")
+	req.Header.Add("Content-Type", "application/json")
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		fmt.Println("error", err)
+	}
+
+	defer res.Body.Close()
+	body, _ := ioutil.ReadAll(res.Body)
+
+	fmt.Println(string(body))
 }

@@ -2,4 +2,3 @@ tmp/*
 *.zip
 .test-env
 main
-bootstrap

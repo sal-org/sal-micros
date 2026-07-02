@@ -1,6 +1,7 @@
 package cron
 
 import (
+	"fmt"
 	CONSTANT "newslotday/constant"
 	DB "newslotday/database"
 	UTIL "newslotday/util"
@@ -15,6 +16,11 @@ func addSlots() {
 		return
 	}
 
+	counsellorIDs, ok := DB.SelectProcess("(select counsellor_id as id from " + CONSTANT.CounsellorsTable + ") union (select listener_id as id from " + CONSTANT.ListenersTable + ") union (select therapist_id as id from " + CONSTANT.TherapistsTable + ")")
+	if !ok {
+		return
+	}
+
 	for _, schedule := range schedules {
 		for key, value := range schedule {
 			slot, err := strconv.Atoi(value)
@@ -24,15 +30,21 @@ func addSlots() {
 			}
 		}
 		schedule["date"] = slotDate.Format("2006-01-02")
-		DB.InsertSQL(CONSTANT.SlotsTable, schedule)
+		checkIfExists := DB.CheckIfExists(CONSTANT.SlotsTable, map[string]string{"counsellor_id": schedule["counsellor_id"], "date": schedule["date"]})
+		if !checkIfExists {
+			DB.InsertSQL(CONSTANT.SlotsTable, schedule)
+		}
+
+		fmt.Println(schedule)
 	}
 
 	// insert a day for whom there is no schedule
-	counsellorIDs, ok := DB.SelectProcess("(select counsellor_id as id from " + CONSTANT.CounsellorsTable + ") union (select listener_id as id from " + CONSTANT.ListenersTable + ") union (select therapist_id as id from " + CONSTANT.TherapistsTable + ")")
-	if !ok {
-		return
-	}
+
 	for _, counsellorID := range counsellorIDs {
-		DB.InsertSQL(CONSTANT.SlotsTable, map[string]string{"counsellor_id": counsellorID["id"], "date": slotDate.Format("2006-01-02")})
+		checkIfExists := DB.CheckIfExists(CONSTANT.SlotsTable, map[string]string{"counsellor_id": counsellorID["id"], "date": slotDate.Format("2006-01-02")})
+		if !checkIfExists {
+			DB.InsertSQL(CONSTANT.SlotsTable, map[string]string{"counsellor_id": counsellorID["id"], "date": slotDate.Format("2006-01-02")})
+		}
+		fmt.Println(slotDate.Format("2006-01-02"))
 	}
 }
