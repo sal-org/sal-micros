@@ -22,6 +22,12 @@ func ConnectDatabase() {
 
 // sql wrapper functions
 
+// ExecuteSQL - execute statement with defined values
+func ExecuteSQL(SQLQuery string, params ...interface{}) (sql.Result, error) {
+	fmt.Println(SQLQuery)
+	return db.Exec(SQLQuery, params...)
+}
+
 // InsertSQL - insert data with defined values
 func InsertSQL(tableName string, body map[string]string) bool {
 	if len(body) == 0 {
@@ -104,4 +110,42 @@ func SelectProcess(SQLQuery string, params ...interface{}) ([]map[string]string,
 		data = append(data, rest)
 	}
 	return data, true
+}
+
+// UpdateSQL - update data with defined values
+func UpdateSQL(tableName string, params map[string]string, body map[string]string) bool {
+	args := []interface{}{}
+
+	if len(body) == 0 {
+		return false
+	}
+	SQLQuery := "update `" + tableName + "` set "
+
+	init := false
+	for key, val := range body {
+		if init {
+			SQLQuery += ","
+		}
+		SQLQuery += "`" + key + "` = ? "
+		args = append(args, val)
+		init = true
+	}
+
+	SQLQuery += " where "
+	init = false
+	for key, val := range params {
+		if init {
+			SQLQuery += " and "
+		}
+		SQLQuery += "`" + key + "` = ? "
+		args = append(args, val)
+		init = true
+	}
+
+	_, err = db.Exec(SQLQuery, args...)
+	if err != nil {
+		fmt.Println("UpdateSQL", err)
+		return false // default
+	}
+	return true
 }

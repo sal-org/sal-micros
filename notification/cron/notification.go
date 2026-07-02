@@ -40,7 +40,7 @@ func sendNotifications() {
 				if notification["onesignal_id"] == "Subscribed Users" {
 					go sendNotificationForBulk(notification["title"], notification["body"], notification["onesignal_id"], notification["type"], notification["image"])
 				} else {
-					go sendNotification(notification["title"], notification["body"], notification["onesignal_id"], notification["type"])
+					go sendNotification(notification["title"], notification["body"], notification["image"], notification["onesignal_id"], notification["type"])
 				}
 
 			}
@@ -57,7 +57,7 @@ func sendNotifications() {
 	}
 }
 
-func sendNotification(heading, content, notificationID, personType string) {
+func sendNotification(heading, content, image, notificationID, personType string) {
 	defer wg.Done()
 
 	var app_id, apiKey string
@@ -81,18 +81,7 @@ func sendNotification(heading, content, notificationID, personType string) {
 
 	}
 
-	if strings.Contains(notificationID, "-") {
-
-		data := MODEL.OneSignalNotificationData{
-			AppID:            app_id,
-			Headings:         map[string]string{"en": heading},
-			Contents:         map[string]string{"en": content},
-			IncludePlayerIDs: []string{notificationID},
-			Data:             map[string]string{},
-		}
-		byteData, _ = json.Marshal(data)
-
-	} else {
+	if image == "" || len(image) == 0 {
 		data := MODEL.OneSignalNotificatnData{
 			AppID:          app_id,
 			Headings:       map[string]string{"en": heading},
@@ -100,6 +89,23 @@ func sendNotification(heading, content, notificationID, personType string) {
 			IncludeAliases: MODEL.IncludeAliase{ExternalID: []string{notificationID}},
 			Channels:       []string{"push"},
 			Data:           map[string]string{},
+		}
+		byteData, _ = json.Marshal(data)
+	} else {
+		// if image is provided, then send notification with image
+		image = CONFIG.MediaURL + image // prepend media url to image path
+
+		data := MODEL.OneSignalNotificationWithImage{
+			AppID:          app_id,
+			Headings:       map[string]string{"en": heading},
+			Contents:       map[string]string{"en": content},
+			IncludeAliases: MODEL.IncludeAliase{ExternalID: []string{notificationID}},
+			Channels:       []string{"push"},
+			Data:           map[string]string{},
+			BigPicture:     image,
+			IosAttachments: MODEL.IosAttachmentsModel{
+				ID1: image,
+			},	
 		}
 		byteData, _ = json.Marshal(data)
 	}
